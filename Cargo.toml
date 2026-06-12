@@ -9,3 +9,8 @@ readme = "README.md"
 
 [dependencies]
 sinerack = { git = "https://github.com/QsKue/sinerack" }
+
+# Standalone, independently-buildable crate, also checked out inside the q-lib
+# workspace where it is consumed via a `[patch]` path redirect. `[workspace]`
+# keeps Cargo from absorbing it as a member (a patch target cannot be a member).
+[workspace]
