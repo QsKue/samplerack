@@ -21,13 +21,18 @@ documents its characteristics, latency, and gotchas in its `docs/AREAS/*` entry.
 
 ---
 
-## Consumers (planned)
+## Consumers
 
-- **mixrack** — replace `rubato` for sample-rate conversion (line-in/device rate → pipeline rate).
-  This is the primary driver and removes `rubato`'s `rustfft` dependency from the engine.
-- **phaserack** — the resample half of time-domain **pitch shifting** (WSOLA increment 2 and any
-  generic stretch-then-resample backend). Note PSOLA/parametric pitch shifting need **no** resampler,
-  so this is not on the autotune critical path.
+- **mixrack — ⏳ NEXT: replace `rubato` for sample-rate conversion** (line-in/device rate → pipeline
+  rate). This is the primary driver and removes `rubato` (and its `rustfft`) from the engine. mixrack
+  keeps its own `Resampler` trait (`src/sources/resamplers/`); the work is rewriting its
+  `sinc.rs` wrapper to drive `samplerack::SincResampler` instead of rubato, dropping the `rubato` /
+  `audioadapter-buffers` deps from the `resampling` feature, and migrating samplerack from a workspace
+  member to a `[patch]` target (it gains a consumer). samplerack removes rubato's complexity here:
+  it is partial-on-output (no surplus cache) and emits aligned from input frame 0.
+- **phaserack** (later) — the resample half of time-domain **pitch shifting** (WSOLA increment 2 and
+  any generic stretch-then-resample backend). Note PSOLA/parametric pitch shifting need **no**
+  resampler, so this is not on the autotune critical path.
 
 ---
 
