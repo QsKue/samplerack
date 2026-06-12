@@ -16,10 +16,14 @@
 mod internals;
 mod linear;
 mod resampler;
+#[cfg(feature = "rubato")]
+mod rubato_backend;
 mod sinc;
 
 pub use linear::LinearResampler;
 pub use resampler::{NoopResampler, ResampleResult, Resampler};
+#[cfg(feature = "rubato")]
+pub use rubato_backend::RubatoResampler;
 pub use sinc::SincResampler;
 
 #[cfg(test)]

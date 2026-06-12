@@ -7,8 +7,17 @@ license = "AGPL-3.0-or-later"
 repository = "https://github.com/QsKue/samplerack"
 readme = "README.md"
 
+[features]
+# Default is the dependency-free, FFT-free build (Linear + Sinc backends only) — a
+# `no_std` candidate. `rubato` adds the std, high-fidelity `RubatoResampler` backend
+# (pulls rubato -> rustfft); enable it when SRC quality trumps a light dependency set.
+default = []
+rubato = ["dep:rubato", "dep:audioadapter-buffers"]
+
 [dependencies]
 sinerack = { git = "https://github.com/QsKue/sinerack" }
+rubato = { version = "2.0.0", optional = true }
+audioadapter-buffers = { version = "3.0.0", optional = true }
 
 # Standalone, independently-buildable crate, also checked out inside the q-lib
 # workspace where it is consumed via a `[patch]` path redirect. `[workspace]`

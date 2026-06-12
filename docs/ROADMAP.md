@@ -15,21 +15,24 @@ documents its characteristics, latency, and gotchas in its `docs/AREAS/*` entry.
   `sinerack::Latency` (ADR 0001).
 - **`NoopResampler`** — pass-through baseline (valid at `ratio == 1.0`). Dependency-free.
 - **`LinearResampler`** — linear interpolation; cheapest, ~1 frame latency, no anti-aliasing.
-- **`SincResampler`** — windowed-sinc polyphase interpolation (16 taps/side, 512 sub-phases,
-  Blackman window); anti-aliased downsampling via cutoff scaling. The high-quality default and the
-  `rubato` distillation. FFT-free.
+- **`SincResampler`** — FFT-free windowed-sinc polyphase interpolation (16 taps/side, 512 sub-phases,
+  Blackman window); anti-aliased downsampling via cutoff scaling. The dependency-free default and the
+  `rubato` distillation.
+- **`RubatoResampler`** *(feature `rubato`)* — std, high-fidelity 128-tap backend wrapping `rubato`'s
+  async sinc resampler (ADR 0002). Content-aligned and length-matched, so it is a drop-in for
+  `SincResampler`; the consumer picks per build (light/`no_std` vs maximum fidelity).
 
 ---
 
 ## Consumers
 
-- **mixrack — ⏳ NEXT: replace `rubato` for sample-rate conversion** (line-in/device rate → pipeline
-  rate). This is the primary driver and removes `rubato` (and its `rustfft`) from the engine. mixrack
-  keeps its own `Resampler` trait (`src/sources/resamplers/`); the work is rewriting its
-  `sinc.rs` wrapper to drive `samplerack::SincResampler` instead of rubato, dropping the `rubato` /
-  `audioadapter-buffers` deps from the `resampling` feature, and migrating samplerack from a workspace
-  member to a `[patch]` target (it gains a consumer). samplerack removes rubato's complexity here:
-  it is partial-on-output (no surplus cache) and emits aligned from input frame 0.
+- **mixrack — ✅ DONE: replaced `rubato` for sample-rate conversion** (line-in/device rate → pipeline
+  rate). mixrack keeps its own `Resampler` trait (`src/sources/resamplers/`); its `sinc.rs` wrapper now
+  drives a samplerack backend, the `rubato` / `audioadapter-buffers` deps moved out of mixrack into
+  samplerack's optional `rubato` feature, and samplerack migrated from a workspace member to a
+  `[patch]` target. The FFT-free backend removed rubato's complexity in the wrapper (partial-on-output,
+  no surplus cache, content-aligned). The std `rubato` backend remains available behind the feature for
+  builds that want maximum fidelity.
 - **phaserack** (later) — the resample half of time-domain **pitch shifting** (WSOLA increment 2 and
   any generic stretch-then-resample backend). Note PSOLA/parametric pitch shifting need **no**
   resampler, so this is not on the autotune critical path.

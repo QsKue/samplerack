@@ -4,8 +4,9 @@
 **sample-rate conversion (resampling)** on interleaved `f32` audio — it changes a signal's sample
 rate by a `ratio = output_rate / input_rate`. It is a **leaf** in the q-lib audio split: it owns the
 `Resampler` contract and its implementations and nothing else — no engine, no session, no I/O, no
-async. It depends only on **SineRack** for the shared `Latency` value type, and is **FFT-free** (no
-`rustfft`). Keep changes minimal, allocation-conscious on the hot path, and engine-agnostic.
+async. By default it depends only on **SineRack** for the shared `Latency` value type and is
+**FFT-free** (no `rustfft`); an optional `rubato` feature adds a std, high-fidelity backend that pulls
+`rubato`/`rustfft`. Keep changes minimal, allocation-conscious on the hot path, and engine-agnostic.
 
 **Why it exists / workspace context.** Resampling is the engine's sample-rate-conversion primitive
 (line-in at one rate into a pipeline at another) **and** the second half of time-domain pitch shifting
@@ -27,15 +28,20 @@ audio crates are git submodules and path workspace members.
 ## Architecture in one screen
 
 - `src/lib.rs` — crate root; declares modules and re-exports the trait + types + `NoopResampler`,
-  `LinearResampler`, `SincResampler`. Carries the cross-backend test suite.
+  `LinearResampler`, `SincResampler` (and `RubatoResampler` under the `rubato` feature). Carries the
+  cross-backend test suite.
 - `src/resampler.rs` — the **contract**: the `Resampler` trait
   (`process`/`flush`/`reset`/`latency`/`set_ratio`/`ratio` on interleaved `f32`), `ResampleResult`,
   the shared `sanitize_ratio`, and `NoopResampler` (pass-through). Dependency-free beyond
   `sinerack::Latency`.
 - `src/linear.rs` — `LinearResampler`: linear interpolation; cheap, ~1 frame latency, no anti-alias.
-- `src/sinc.rs` — `SincResampler`: windowed-sinc polyphase; high quality, anti-aliased downsampling.
+- `src/sinc.rs` — `SincResampler`: FFT-free windowed-sinc polyphase; high quality, anti-aliased
+  downsampling. The dependency-free default backend.
+- `src/rubato_backend.rs` — `RubatoResampler` (feature `rubato`): std 128-tap `rubato` wrapper; the
+  high-fidelity backend. Content-aligned + length-matched, a drop-in for `SincResampler`.
 - `src/internals.rs` — `InputHistory`: the shared streaming input buffer (absolute frame addressing,
-  read-around, trim) the real backends are built on.
+  read-around, trim) the distilled backends (`linear`, `sinc`) are built on. The rubato backend buffers
+  via its own FIFO instead.
 
 ## Conventions (the durable rules)
 
@@ -51,8 +57,9 @@ audio crates are git submodules and path workspace members.
   when downsampling so the result is anti-aliased.
 - **Report latency as `sinerack::Latency`.** `latency()` returns a `sinerack::Latency` so the engine can
   sum it across stages. Don't invent a local latency type.
-- **FFT-free.** Do not add `rustfft` (or any FFT) — the crate's value is being a light, `no_std`-able
-  resampler. A future FFT/sync backend, if ever justified, would be a separate feature-gated module.
+- **FFT-free by default.** Do not add `rustfft` (or any FFT) to the **default** build — the crate's
+  value is a light, `no_std`-able resampler. Heavy/std backends (the `rubato` feature; a future FFT/sync
+  backend) must stay **opt-in feature-gated modules** so the default surface never grows.
 - **Stay engine-agnostic and small.** No session, routing, device, or pipeline concepts. SampleRack
   transforms a buffer the caller provides; the engine decides when and why.
 
@@ -70,7 +77,8 @@ audio crates are git submodules and path workspace members.
 1. Read `docs/ARCHITECTURE.md` (if touching the trait/API boundary) and the relevant `docs/AREAS/*.md`.
 2. Keep the change small and engine-agnostic; keep doc updates near the behavior change.
 3. Run the checks in `docs/ARCHITECTURE.md` (fmt/clippy/test). When changing the trait or a result's
-   semantics, update `NoopResampler`, both backends, and the docs together.
+   semantics, update `NoopResampler`, every backend (incl. the feature-gated `rubato` one), and the
+   docs together. Run the checks with **and** without `--features rubato`.
 
 ## Docs maintenance
 

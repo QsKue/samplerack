@@ -8,19 +8,29 @@ update it when the `Resampler` contract, module boundaries, or data flow change.
 `samplerack` is a single library crate with a small flat module tree:
 
 ```text
-lib.rs            crate root: module declarations, re-exports, cross-backend test suite
-├── resampler.rs  the Resampler trait + value types + NoopResampler (the contract)
-├── linear.rs     LinearResampler — linear interpolation (cheap, no anti-alias)
-├── sinc.rs       SincResampler — windowed-sinc polyphase (high quality, anti-aliased)
-└── internals.rs  InputHistory — shared streaming input buffer (absolute addressing + trim)
+lib.rs              crate root: module declarations, re-exports, cross-backend test suite
+├── resampler.rs    the Resampler trait + value types + NoopResampler (the contract)
+├── linear.rs       LinearResampler — linear interpolation (cheap, no anti-alias)
+├── sinc.rs         SincResampler — FFT-free windowed-sinc polyphase (default, anti-aliased)
+├── rubato_backend.rs  RubatoResampler — std 128-tap rubato wrapper (feature `rubato`)
+└── internals.rs    InputHistory — shared streaming input buffer (absolute addressing + trim)
 ```
 
 The contract (`resampler.rs`) is the public surface every consumer codes against; backends are
-implementations of it. There is no engine, no session, no async, no I/O. The only dependency is
-**SineRack** (for `Latency`). The tree is **flat** because there is one family of backends today
-(interpolating resamplers); a `no_std`-style domain split (like pitchrack's `time_domain` /
-`frequency_domain`) would only be introduced if a genuinely different family lands (e.g. an
-FFT/sync resampler behind a feature) — see `docs/ROADMAP.md`.
+implementations of it. There is no engine, no session, no async, no I/O. The default dependency is
+just **SineRack** (for `Latency`); the optional `rubato` feature pulls `rubato` + `audioadapter-buffers`
+(and transitively `rustfft`) for the std high-fidelity backend. The tree is **flat** because there is
+one family of backends today (interpolating resamplers); a `no_std`-style domain split (like
+pitchrack's `time_domain` / `frequency_domain`) would only be introduced if a genuinely different
+family lands (e.g. an FFT/sync resampler) — see `docs/ROADMAP.md`.
+
+## Features
+
+- **default** (`[]`) — FFT-free, dependency-free beyond SineRack: `Noop` + `Linear` + `Sinc`. The
+  `no_std`-candidate build.
+- **`rubato`** — adds `RubatoResampler`, wrapping `rubato`'s async sinc resampler (std, pulls
+  `rustfft`). For builds where SRC fidelity outweighs a light dependency surface; interchangeable with
+  `SincResampler` (same contract, content-aligned, length-matched).
 
 ## Public API
 
@@ -39,8 +49,11 @@ The public contract is intentionally small:
 - `NoopResampler` — pass-through (valid at `ratio == 1.0`); the default and a test baseline.
 - `LinearResampler` — linear interpolation; `new(in_rate, out_rate, channels)` or
   `with_ratio(ratio, channels)`.
-- `SincResampler` — windowed-sinc polyphase; same constructors. Anti-aliases downsampling by scaling
-  the kernel cutoff to the output Nyquist.
+- `SincResampler` — FFT-free windowed-sinc polyphase; same constructors. Anti-aliases downsampling by
+  scaling the kernel cutoff to the output Nyquist.
+- `RubatoResampler` *(feature `rubato`)* — std 128-tap `rubato`-backed sinc; same constructors. Buffers
+  input into whole rubato chunks internally, trims rubato's group delay for content alignment, and caps
+  its flush tail to the time-aligned length so it stays a drop-in for `SincResampler`.
 
 Adding a backend should not change this trait: add a new module with a struct that implements
 `Resampler` and re-export it from `lib.rs`.
@@ -74,8 +87,9 @@ backend rebuilds its polyphase table only when the cutoff (`min(1, ratio)`) chan
 - **One uniform trait.** Every resampler implements `Resampler`; backends are added as modules.
 - **Latency via SineRack.** `latency()` returns `sinerack::Latency` (sinc = `HALF_TAPS` input frames,
   linear = 1, noop = 0) so the engine can sum it.
-- **FFT-free / light.** No `rustfft`; the crate stays a candidate for `no_std`. That is the whole point
-  of distilling it out of `rubato`.
+- **FFT-free by default.** The default build has no `rustfft`; the crate stays a candidate for `no_std`.
+  That is the whole point of distilling the sinc backend out of `rubato`. The std-only `rubato` backend
+  is opt-in behind a feature, so it never burdens a light build.
 - **Engine-agnostic.** No session/source/routing concepts. The engine owns scheduling and policy.
 
 ## Testing & checks
