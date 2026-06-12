@@ -36,9 +36,12 @@ documents its characteristics, latency, and gotchas in its `docs/AREAS/*` entry.
   its `pitch-*` detector flags. Default = `resample-rubato` (preserves the pre-samplerack SRC quality);
   `rubato`/`audioadapter-buffers` deps live in samplerack's optional feature now. samplerack also
   migrated from a workspace member to a `[patch]` target.
-- **phaserack** (later) — the resample half of time-domain **pitch shifting** (WSOLA increment 2 and
-  any generic stretch-then-resample backend). Note PSOLA/parametric pitch shifting need **no**
-  resampler, so this is not on the autotune critical path.
+- **phaserack — ✅ WSOLA increment 2** consumes samplerack for the resample half of time-domain
+  **pitch shifting** (stretch-then-resample). The resampler is **dependency-injected** into
+  `WsolaTimeStretcher::with_resampler` (any `samplerack::Resampler`), so phaserack pulls only the
+  trait (`default-features = false`) and the backend is the consumer's choice. Any generic
+  stretch-then-resample backend follows the same pattern. Note PSOLA/parametric pitch shifting need
+  **no** resampler, so they are not on this path.
 
 ---
 
