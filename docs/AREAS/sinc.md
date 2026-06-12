@@ -1,7 +1,8 @@
 # SincResampler (`src/sinc.rs`)
 
-Source: `src/sinc.rs` — `SincResampler`. The dependency-free, FFT-free default backend — an
-in-house distillation of `rubato`'s sinc interpolator. For the std, 128-tap `rubato` backend
+Source: `src/sinc.rs` — `SincResampler`. The dependency-free, FFT-free high-quality backend — an
+in-house distillation of `rubato`'s sinc interpolator. Behind the `sinc` cargo feature (off by default —
+see [ADR 0003](../DECISIONS/0003-per-backend-feature-gating.md)). For the std, 128-tap `rubato` backend
 proper see [`rubato_backend.md`](rubato_backend.md).
 
 A **windowed-sinc polyphase** resampler: each output frame is a `2 * HALF_TAPS`-tap

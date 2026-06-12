@@ -13,20 +13,27 @@
 //! across the pipeline. The crate is dependency-free beyond `sinerack` and FFT-free
 //! (no `rustfft`), so it stays light and is a candidate for a future `no_std` build.
 
+#[cfg(any(feature = "linear", feature = "sinc"))]
 mod internals;
+#[cfg(feature = "linear")]
 mod linear;
 mod resampler;
 #[cfg(feature = "rubato")]
 mod rubato_backend;
+#[cfg(feature = "sinc")]
 mod sinc;
 
+#[cfg(feature = "linear")]
 pub use linear::LinearResampler;
 pub use resampler::{NoopResampler, ResampleResult, Resampler};
 #[cfg(feature = "rubato")]
 pub use rubato_backend::RubatoResampler;
+#[cfg(feature = "sinc")]
 pub use sinc::SincResampler;
 
-#[cfg(test)]
+// The cross-backend suite exercises Linear + Sinc together; it compiles only when both
+// are enabled (CI runs `--all-features`). Each backend also has its own in-module tests.
+#[cfg(all(test, feature = "linear", feature = "sinc"))]
 mod tests {
     use super::*;
 

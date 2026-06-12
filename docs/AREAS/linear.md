@@ -1,6 +1,7 @@
 # LinearResampler (`src/linear.rs`)
 
 Source: `src/linear.rs` — `LinearResampler`. The cheapest real backend. Dependency-free, FFT-free.
+Behind the `linear` cargo feature (off by default — see [ADR 0003](../DECISIONS/0003-per-backend-feature-gating.md)).
 
 Linear interpolation: each output frame is a linear blend of the two input frames bracketing its
 fractional position (`a + (b - a) * frac`). ~1 frame of latency (`Latency::new(1, 0, 0)` — it needs

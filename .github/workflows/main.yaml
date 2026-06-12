@@ -20,16 +20,14 @@ jobs:
         components: rustfmt, clippy
     - name: Format
       run: cargo fmt --all --check
-    - name: Clippy (default, FFT-free)
-      run: cargo clippy --all-targets -- -D warnings
-    - name: Clippy (rubato backend)
-      run: cargo clippy --all-targets --features rubato -- -D warnings
-    - name: Build
-      run: cargo build --verbose
-    - name: Test (default, FFT-free)
-      run: cargo test --verbose
-    - name: Test (rubato backend)
-      run: cargo test --verbose --features rubato
+    - name: Clippy (trait-only default)
+      run: cargo clippy --no-default-features --all-targets -- -D warnings
+    - name: Clippy (all backends)
+      run: cargo clippy --all-features --all-targets -- -D warnings
+    - name: Build (trait-only default)
+      run: cargo build --no-default-features --verbose
+    - name: Test (all backends)
+      run: cargo test --all-features --verbose
 
   msrv:
     name: MSRV (1.85)

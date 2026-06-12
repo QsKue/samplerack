@@ -8,10 +8,17 @@ repository = "https://github.com/QsKue/samplerack"
 readme = "README.md"
 
 [features]
-# Default is the dependency-free, FFT-free build (Linear + Sinc backends only) — a
-# `no_std` candidate. `rubato` adds the std, high-fidelity `RubatoResampler` backend
-# (pulls rubato -> rustfft); enable it when SRC quality trumps a light dependency set.
+# Per-backend opt-in (mirrors pitchrack ADR 0007 / phaserack). The default gives only
+# the `Resampler` trait + `NoopResampler` (pass-through) — if you need no conversion you
+# need no backend. Each real backend is its own feature:
+#   linear  — FFT-free linear interpolation (cheap, no anti-alias). Dependency-free.
+#   sinc    — FFT-free windowed-sinc polyphase (anti-aliased). Dependency-free; no_std-candidate.
+#   rubato  — std, high-fidelity 128-tap rubato wrapper (pulls rubato -> rustfft).
+# `linear`/`sinc` share the internal `InputHistory`; both stay FFT-free so the default
+# and any FFT-free subset remain `rustfft`-free.
 default = []
+linear = []
+sinc = []
 rubato = ["dep:rubato", "dep:audioadapter-buffers"]
 
 [dependencies]

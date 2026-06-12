@@ -41,7 +41,9 @@ pub trait Resampler: Send {
 }
 
 /// Clamps a requested ratio to a finite, strictly positive value (falling back to
-/// `1.0` for non-finite input). Shared by the real backends.
+/// `1.0` for non-finite input). Shared by the real backends (only compiled when one is
+/// enabled; the trait-only / Noop default does not use it).
+#[cfg(any(feature = "linear", feature = "sinc", feature = "rubato"))]
 pub(crate) fn sanitize_ratio(ratio: f64) -> f64 {
     if ratio.is_finite() && ratio > 0.0 {
         ratio.max(f64::MIN_POSITIVE)

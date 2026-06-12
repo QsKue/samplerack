@@ -12,12 +12,15 @@ documents its characteristics, latency, and gotchas in its `docs/AREAS/*` entry.
 ## Current ✅
 
 - **`Resampler` contract** — the trait, `ResampleResult`, `sanitize_ratio`, reporting latency as
-  `sinerack::Latency` (ADR 0001).
-- **`NoopResampler`** — pass-through baseline (valid at `ratio == 1.0`). Dependency-free.
-- **`LinearResampler`** — linear interpolation; cheapest, ~1 frame latency, no anti-aliasing.
-- **`SincResampler`** — FFT-free windowed-sinc polyphase interpolation (16 taps/side, 512 sub-phases,
-  Blackman window); anti-aliased downsampling via cutoff scaling. The dependency-free default and the
-  `rubato` distillation.
+  `sinerack::Latency` (ADR 0001). Always built.
+- **Per-backend feature gating** (ADR 0003) — default = trait + `NoopResampler` only; every real backend
+  is its own opt-in feature, mirroring pitchrack ADR 0007.
+- **`NoopResampler`** — pass-through baseline (valid at `ratio == 1.0`). Always available.
+- **`LinearResampler`** *(feature `linear`)* — linear interpolation; cheapest, ~1 frame latency, no
+  anti-aliasing. FFT-free.
+- **`SincResampler`** *(feature `sinc`)* — FFT-free windowed-sinc polyphase interpolation (16 taps/side,
+  512 sub-phases, Blackman window); anti-aliased downsampling via cutoff scaling. The dependency-free
+  high-quality backend and the `rubato` distillation.
 - **`RubatoResampler`** *(feature `rubato`)* — std, high-fidelity 128-tap backend wrapping `rubato`'s
   async sinc resampler (ADR 0002). Content-aligned and length-matched, so it is a drop-in for
   `SincResampler`; the consumer picks per build (light/`no_std` vs maximum fidelity).
@@ -27,12 +30,12 @@ documents its characteristics, latency, and gotchas in its `docs/AREAS/*` entry.
 ## Consumers
 
 - **mixrack — ✅ DONE: replaced `rubato` for sample-rate conversion** (line-in/device rate → pipeline
-  rate). mixrack keeps its own `Resampler` trait (`src/sources/resamplers/`); its `sinc.rs` wrapper now
-  drives a samplerack backend, the `rubato` / `audioadapter-buffers` deps moved out of mixrack into
-  samplerack's optional `rubato` feature, and samplerack migrated from a workspace member to a
-  `[patch]` target. The FFT-free backend removed rubato's complexity in the wrapper (partial-on-output,
-  no surplus cache, content-aligned). The std `rubato` backend remains available behind the feature for
-  builds that want maximum fidelity.
+  rate). mixrack keeps its own `Resampler` trait (`src/sources/resamplers/`); its `sinc.rs` wrapper
+  selects a samplerack backend by `#[cfg]`. mixrack exposes one feature per backend (`resample-linear` /
+  `resample-sinc` / `resample-rubato`), each forwarding to the matching samplerack feature — mirroring
+  its `pitch-*` detector flags. Default = `resample-rubato` (preserves the pre-samplerack SRC quality);
+  `rubato`/`audioadapter-buffers` deps live in samplerack's optional feature now. samplerack also
+  migrated from a workspace member to a `[patch]` target.
 - **phaserack** (later) — the resample half of time-domain **pitch shifting** (WSOLA increment 2 and
   any generic stretch-then-resample backend). Note PSOLA/parametric pitch shifting need **no**
   resampler, so this is not on the autotune critical path.
