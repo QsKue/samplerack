@@ -239,6 +239,13 @@ impl RubatoResampler {
     /// time-aligned output length (`ratio * in_total`) is reached.
     fn flush_tail(&mut self) {
         let channels = self.channels;
+        // Drain every FULL real chunk still buffered before the partial-tail pump. The
+        // streaming driver leaves < 1 chunk here (it runs chunks in `process`), but a
+        // caller that flushes with more buffered must not have the surplus dropped — the
+        // trait contract promises flush drains the remaining tail, no "< 1 chunk"
+        // precondition, and the FFT-free backends drain all buffered history.
+        while self.run_one_chunk() {}
+
         let (needed, ratio) = match self.rub.as_ref() {
             Some(r) => (r.input_frames_next(), r.resample_ratio()),
             None => return,
@@ -364,8 +371,25 @@ impl Resampler for RubatoResampler {
     }
 
     fn set_ratio(&mut self, ratio: f64) {
-        self.ratio = sanitize_ratio(ratio);
-        // Rebuild is deferred to the next `process`/`flush` (see `ensure_built`).
+        let ratio = sanitize_ratio(ratio);
+        if (self.ratio - ratio).abs() < 1e-12 {
+            return;
+        }
+        self.ratio = ratio;
+        // Change the ratio IN PLACE when the filter is already built, so the delay
+        // line and buffered input survive. A mid-stream ratio change (e.g. WSOLA pitch
+        // tracking calling this every block) must not rebuild a cold filter — that
+        // would re-trim `output_delay` frames of real audio as if they were warm-up
+        // silence and click. rubato permits an in-place change within
+        // `MAX_RELATIVE_RATIO` of the build ratio; outside that range the call fails and
+        // we leave `built_ratio` stale so the next `process` does a full rebuild (a rare,
+        // large jump where a discontinuity is unavoidable anyway).
+        if let Some(rub) = self.rub.as_mut()
+            && rub.set_resample_ratio(ratio, true).is_ok()
+        {
+            self.built_ratio = ratio;
+        }
+        // When not yet built, the deferred build in `ensure_built` picks up `self.ratio`.
     }
 
     fn ratio(&self) -> f64 {

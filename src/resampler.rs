@@ -35,6 +35,14 @@ pub trait Resampler: Send {
 
     /// Sets the conversion ratio (`output_rate / input_rate`). Implementations
     /// sanitize it to a finite, positive value.
+    ///
+    /// **Streaming semantics (contract):** a ratio change is *continuous* — buffered
+    /// input, read position, and filter/delay-line state are preserved, and the new
+    /// ratio applies only to output produced from that point on. It does **not** flush,
+    /// re-trim warm-up, or drop audio (so it is safe to call every block, e.g. for live
+    /// pitch tracking). To start a genuinely fresh stream, call [`reset`](Self::reset).
+    /// (The rubato backend honors this via an in-place ratio change; an out-of-range jump
+    /// beyond its build ratio is the one case that rebuilds.)
     fn set_ratio(&mut self, ratio: f64);
 
     fn ratio(&self) -> f64;

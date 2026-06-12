@@ -46,9 +46,11 @@ impl InputHistory {
     }
 
     /// Drops buffered input before absolute frame `keep_from` (clamped to what is
-    /// buffered) — input no future read can reach.
+    /// buffered) — input no future read can reach. `keep_from` is clamped to both
+    /// `start` (no negative drop) and `end` (a read position past the buffer drops
+    /// everything, never more — a heavy downsample step can overshoot the buffer).
     pub(crate) fn trim(&mut self, keep_from: i64) {
-        let keep_from = keep_from.max(self.start);
+        let keep_from = keep_from.clamp(self.start, self.end());
         let drop = (keep_from - self.start) as usize;
         if drop > 0 {
             self.buf.drain(0..drop * self.channels);
